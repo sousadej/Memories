@@ -1,17 +1,39 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { saveTrip } from '../data/tripStore';
 import { RootStackParamList } from '../types/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateTrip'>;
 
 export function CreateTripScreen({ navigation }: Props) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  async function createTrip() {
+    const trip = await saveTrip({
+      title: title.trim() || 'Untitled trip',
+      description: description.trim(),
+      location: location.trim() || 'Location TBD',
+      startDate: startDate.trim(),
+      endDate: endDate.trim(),
+    });
+
+    navigation.replace('TripDetail', { tripId: trip.id });
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Start a shared roll</Text>
-      <TextInput style={styles.input} placeholder="Trip name" placeholderTextColor="#94A3B8" />
-      <TextInput style={styles.input} placeholder="Destination" placeholderTextColor="#94A3B8" />
-      <TextInput style={styles.input} placeholder="Dates" placeholderTextColor="#94A3B8" />
-      <Pressable style={styles.button} onPress={() => navigation.navigate('Home')}>
+      <TextInput style={styles.input} placeholder="Trip name" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
+      <TextInput style={styles.input} placeholder="Description" placeholderTextColor="#94A3B8" value={description} onChangeText={setDescription} />
+      <TextInput style={styles.input} placeholder="Destination" placeholderTextColor="#94A3B8" value={location} onChangeText={setLocation} />
+      <TextInput style={styles.input} placeholder="Start date" placeholderTextColor="#94A3B8" value={startDate} onChangeText={setStartDate} />
+      <TextInput style={styles.input} placeholder="End date" placeholderTextColor="#94A3B8" value={endDate} onChangeText={setEndDate} />
+      <Pressable style={styles.button} onPress={createTrip}>
         <Text style={styles.buttonText}>Create trip</Text>
       </Pressable>
     </View>

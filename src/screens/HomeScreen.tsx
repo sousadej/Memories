@@ -1,11 +1,32 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { trips } from '../data/trips';
+import { useEffect, useState } from 'react';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { listTrips } from '../data/tripStore';
+import { TripAlbum } from '../models/trip';
 import { RootStackParamList } from '../types/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
+function formatTripDates(startDate: string, endDate: string) {
+  if (!startDate && !endDate) return 'Dates TBD';
+  if (startDate === endDate || !endDate) return startDate;
+  return `${startDate} → ${endDate}`;
+}
+
 export function HomeScreen({ navigation }: Props) {
+  const [trips, setTrips] = useState<TripAlbum[]>([]);
+
+  useEffect(() => {
+    const refreshTrips = () => {
+      listTrips().then(setTrips);
+    };
+
+    refreshTrips();
+    const unsubscribe = navigation.addListener('focus', refreshTrips);
+
+    return unsubscribe;
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <View style={styles.hero}>
@@ -21,11 +42,11 @@ export function HomeScreen({ navigation }: Props) {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <Pressable style={styles.card} onPress={() => navigation.navigate('TripDetail', { tripId: item.id })}>
-            <View style={[styles.cover, { backgroundColor: item.coverColor }]} />
+            {item.coverPhotoUri ? <Image source={{ uri: item.coverPhotoUri }} style={styles.coverImage} /> : <View style={styles.cover} />}
             <View style={styles.cardBody}>
               <Text style={styles.cardTitle}>{item.title}</Text>
               <Text style={styles.cardMeta}>{item.location}</Text>
-              <Text style={styles.cardMeta}>{item.dates} • {item.photoCount} photos</Text>
+              <Text style={styles.cardMeta}>{formatTripDates(item.startDate, item.endDate)} • {item.photos.length} photos</Text>
             </View>
           </Pressable>
         )}
@@ -43,7 +64,8 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontWeight: '700' },
   list: { gap: 14, paddingBottom: 32 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 22, overflow: 'hidden', flexDirection: 'row', elevation: 2, shadowColor: '#0F172A', shadowOpacity: 0.08, shadowRadius: 12 },
-  cover: { width: 92 },
+  cover: { width: 92, backgroundColor: '#F97316' },
+  coverImage: { width: 92, minHeight: 112 },
   cardBody: { padding: 16, flex: 1 },
   cardTitle: { color: '#0F172A', fontSize: 18, fontWeight: '800' },
   cardMeta: { color: '#64748B', marginTop: 6 },

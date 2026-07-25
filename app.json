@@ -1,1 +1,51 @@
-{"expo":{"name":"Memories","slug":"memories","version":"1.0.0","orientation":"portrait","userInterfaceStyle":"automatic","scheme":"memories","ios":{"supportsTablet":true,"bundleIdentifier":"com.memories.app","infoPlist":{"NSCameraUsageDescription":"Memories uses the camera to capture disposable-camera-style trip photos.","NSPhotoLibraryUsageDescription":"Memories can save and import photos for your trip albums."}},"android":{"package":"com.memories.app","permissions":["CAMERA","READ_MEDIA_IMAGES","READ_EXTERNAL_STORAGE"],"adaptiveIcon":{"backgroundColor":"#1E293B"}},"plugins":[["expo-camera",{"cameraPermission":"Allow Memories to take disposable-camera-style trip photos."}],["expo-image-picker",{"photosPermission":"Allow Memories to access your photo library for trip albums."}]],"extra":{"eas":{"projectId":"00000000-0000-0000-0000-000000000000"}}}}
+{
+  "expo": {
+    "name": "Memories",
+    "slug": "memories",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "memories",
+    "splash": {
+      "backgroundColor": "#FFF7ED"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.memories.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Memories uses the camera to capture disposable-camera-style trip photos.",
+        "NSPhotoLibraryUsageDescription": "Memories can save and import photos for your trip albums."
+      }
+    },
+    "android": {
+      "package": "com.memories.app",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF7ED"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Memories to take disposable-camera-style trip photos."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Memories to access your photo library for trip albums."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  }
+}

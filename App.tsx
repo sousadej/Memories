@@ -13,13 +13,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   return (
     <NavigationContainer>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: '#F8FAFC' },
+          headerTransparent: true,
+          headerBlurEffect: 'systemThinMaterialLight',
           headerShadowVisible: false,
-          headerTitleStyle: { color: '#0F172A', fontWeight: '700' },
-          contentStyle: { backgroundColor: '#F8FAFC' },
+          headerTintColor: '#FFF7ED',
+          headerTitleStyle: { color: '#FFF7ED', fontWeight: '900' },
+          contentStyle: { backgroundColor: '#431407' },
         }}
       >
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Memories' }} />

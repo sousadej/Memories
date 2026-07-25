@@ -140,3 +140,12 @@ export async function savePhoto(input: Omit<Photo, 'id' | 'capturedAt' | 'reveal
   writeCollection(PHOTOS_KEY, [photo, ...photos]);
   return photo;
 }
+
+export async function developTripPhotos(tripId: string): Promise<Photo[]> {
+  const photos = readCollection<Photo>(PHOTOS_KEY, seedPhotos);
+  const developedPhotos = photos.map((photo) => (
+    photo.tripId === tripId ? { ...photo, revealed: true } : photo
+  ));
+  writeCollection(PHOTOS_KEY, developedPhotos);
+  return developedPhotos.filter((photo) => photo.tripId === tripId);
+}

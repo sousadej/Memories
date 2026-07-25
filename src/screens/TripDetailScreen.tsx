@@ -1,6 +1,8 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { DISPOSABLE_FILTER_STYLE, DISPOSABLE_ROLL_LIMIT } from '../constants/camera';
 import { developTripPhotos, getTrip, listTrips } from '../data/tripStore';
 import { Photo, TripAlbum } from '../models/trip';
@@ -9,6 +11,7 @@ import { RootStackParamList } from '../types/navigation';
 type Props = NativeStackScreenProps<RootStackParamList, 'TripDetail'>;
 type SectionMode = 'none' | 'day' | 'location';
 type PhotoSection = { title: string; photos: Photo[] };
+type ExportMode = 'album' | 'selection';
 
 type PhotoWithLocation = Photo & { location?: string };
 
@@ -29,6 +32,58 @@ function formatPhotoDay(capturedAt: string) {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function makeSafeFileName(value: string) {
+  return value.trim().replace(/[^a-z0-9-]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'trip-album';
+}
+
+function buildAlbumExportHtml(trip: TripAlbum, photos: Photo[]) {
+  const photoCards = photos.map((photo, index) => `
+    <figure>
+      <img src="${escapeHtml(photo.localUri)}" alt="${escapeHtml(photo.caption || `${trip.title} photo ${index + 1}`)}" />
+      <figcaption>
+        <strong>${String(index + 1).padStart(2, '0')}</strong>
+        <span>${escapeHtml(photo.caption || formatPhotoDay(photo.capturedAt))}</span>
+      </figcaption>
+    </figure>
+  `).join('');
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(trip.title)} album</title>
+    <style>
+      body { margin: 0; padding: 32px; background: #f8fafc; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      header { margin-bottom: 24px; }
+      p { color: #475569; font-weight: 600; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+      figure { margin: 0; background: #fff; border-radius: 22px; overflow: hidden; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+      img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+      figcaption { display: flex; gap: 10px; padding: 12px; font-weight: 700; }
+      strong { color: #f97316; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>${escapeHtml(trip.title)}</h1>
+      <p>${escapeHtml(trip.location)} • ${escapeHtml(formatTripDates(trip.startDate, trip.endDate))}</p>
+      ${trip.description ? `<p>${escapeHtml(trip.description)}</p>` : ''}
+    </header>
+    <main class="grid">${photoCards}</main>
+  </body>
+</html>`;
 }
 
 function getPhotoLocation(photo: Photo, fallbackLocation: string) {
@@ -78,6 +133,8 @@ export function TripDetailScreen({ navigation, route }: Props) {
   const [trip, setTrip] = useState<TripAlbum>();
   const [sectionMode, setSectionMode] = useState<SectionMode>('day');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo>();
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
+  const [shareStatus, setShareStatus] = useState<string>();
 
   const refreshTrip = () => {
     getTrip(route.params.tripId)
@@ -103,11 +160,72 @@ export function TripDetailScreen({ navigation, route }: Props) {
   const undevelopedCount = useMemo(() => sortedTripPhotos.filter((photo) => !photo.revealed).length, [sortedTripPhotos]);
   const developedCount = sortedTripPhotos.length - undevelopedCount;
   const shotsRemaining = Math.max(0, DISPOSABLE_ROLL_LIMIT - sortedTripPhotos.length);
+  const shareablePhotos = useMemo(() => sortedTripPhotos.filter((photo) => photo.revealed), [sortedTripPhotos]);
+  const selectedSharePhotos = useMemo(() => shareablePhotos.filter((photo) => selectedPhotoIds.includes(photo.id)), [selectedPhotoIds, shareablePhotos]);
+  const isAlbumComplete = sortedTripPhotos.length > 0 && undevelopedCount === 0;
 
   async function developRoll() {
     if (!trip) return;
     await developTripPhotos(trip.id);
     refreshTrip();
+  }
+
+  function toggleSelectedPhoto(photoId: string) {
+    setSelectedPhotoIds((currentIds) => (
+      currentIds.includes(photoId) ? currentIds.filter((id) => id !== photoId) : [...currentIds, photoId]
+    ));
+  }
+
+  async function shareAlbum(mode: ExportMode) {
+    if (!trip) return;
+
+    const photosToShare = mode === 'selection' ? selectedSharePhotos : shareablePhotos;
+
+    if (!isAlbumComplete) {
+      setShareStatus('Finish developing every photo before sharing this completed album.');
+      return;
+    }
+
+    if (photosToShare.length === 0) {
+      setShareStatus('Select at least one developed photo to export.');
+      return;
+    }
+
+    setShareStatus('Preparing shareable album…');
+
+    const html = buildAlbumExportHtml(trip, photosToShare);
+    const fileName = `${makeSafeFileName(trip.title)}-${mode === 'selection' ? 'selection' : 'album'}.html`;
+    const exportDirectory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+
+    if (!exportDirectory) {
+      setShareStatus('Album export storage is not available on this device.');
+      return;
+    }
+
+    const fileUri = `${exportDirectory}${fileName}`;
+
+    try {
+      await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
+      const canUseNativeSharing = await Sharing.isAvailableAsync();
+
+      if (canUseNativeSharing) {
+        await Sharing.shareAsync(fileUri, {
+          dialogTitle: `Share ${trip.title}`,
+          mimeType: 'text/html',
+          UTI: 'public.html',
+        });
+      } else {
+        await Share.share({
+          title: `${trip.title} album`,
+          message: `${trip.title}\n${formatTripDates(trip.startDate, trip.endDate)}\n${photosToShare.map((photo, index) => `${index + 1}. ${photo.caption || formatPhotoDay(photo.capturedAt)} — ${photo.localUri}`).join('\n')}`,
+          url: fileUri,
+        });
+      }
+
+      setShareStatus(`Exported ${photosToShare.length} photo${photosToShare.length === 1 ? '' : 's'} in album order.`);
+    } catch {
+      setShareStatus('Album export failed. Please try again.');
+    }
   }
 
   if (!trip) {
@@ -142,6 +260,35 @@ export function TripDetailScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         </View>
+        <View style={styles.sharePanel}>
+          <View style={styles.shareHeader}>
+            <View style={styles.shareHeaderCopy}>
+              <Text style={styles.shareTitle}>Share completed album</Text>
+              <Text style={styles.shareMeta}>{isAlbumComplete ? `${shareablePhotos.length} photos ready to export` : 'Develop the full album to unlock sharing'}</Text>
+            </View>
+            <Pressable style={[styles.shareButton, !isAlbumComplete && styles.disabledButton]} disabled={!isAlbumComplete} onPress={() => shareAlbum('album')}>
+              <Text style={styles.shareButtonText}>Share album</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.shareHelp}>Exports a shareable HTML collage through the native iOS or Android share sheet while preserving the album title and capture-time photo order.</Text>
+          {isAlbumComplete ? (
+            <>
+              <View style={styles.selectionActions}>
+                <Text style={styles.selectionCount}>{selectedSharePhotos.length} selected</Text>
+                <Pressable onPress={() => setSelectedPhotoIds(shareablePhotos.map((photo) => photo.id))}>
+                  <Text style={styles.selectionLink}>Select all</Text>
+                </Pressable>
+                <Pressable onPress={() => setSelectedPhotoIds([])}>
+                  <Text style={styles.selectionLink}>Clear</Text>
+                </Pressable>
+              </View>
+              <Pressable style={[styles.selectionShareButton, selectedSharePhotos.length === 0 && styles.disabledButton]} disabled={selectedSharePhotos.length === 0} onPress={() => shareAlbum('selection')}>
+                <Text style={styles.selectionShareButtonText}>Share selected photos</Text>
+              </Pressable>
+            </>
+          ) : null}
+          {shareStatus ? <Text style={styles.shareStatus}>{shareStatus}</Text> : null}
+        </View>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Trip photos</Text>
           <Text style={styles.sectionMeta}>{sortedTripPhotos.length} sorted by capture time</Text>
@@ -165,6 +312,11 @@ export function TripDetailScreen({ navigation, route }: Props) {
               {section.photos.map((photo) => (
                 <Pressable key={photo.id} style={styles.photoCard} onPress={() => photo.revealed && setSelectedPhoto(photo)} disabled={!photo.revealed}>
                   <PhotoFrame photo={photo} />
+                  {isAlbumComplete ? (
+                    <Pressable style={[styles.selectBadge, selectedPhotoIds.includes(photo.id) && styles.selectBadgeActive]} onPress={() => toggleSelectedPhoto(photo.id)}>
+                      <Text style={[styles.selectBadgeText, selectedPhotoIds.includes(photo.id) && styles.selectBadgeTextActive]}>{selectedPhotoIds.includes(photo.id) ? 'Selected' : 'Select'}</Text>
+                    </Pressable>
+                  ) : null}
                   <Text style={styles.caption} numberOfLines={2}>{photo.caption || new Date(photo.capturedAt).toLocaleString()}</Text>
                 </Pressable>
               ))}
@@ -205,6 +357,20 @@ const styles = StyleSheet.create({
   developButton: { flex: 1, backgroundColor: '#F97316', borderRadius: 18, padding: 14, alignItems: 'center' },
   developButtonText: { color: '#FFFFFF', fontWeight: '900' },
   disabledButton: { opacity: 0.45 },
+  sharePanel: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 16, marginBottom: 20, gap: 12, elevation: 2, shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 10 },
+  shareHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
+  shareHeaderCopy: { flex: 1 },
+  shareTitle: { color: '#0F172A', fontSize: 20, fontWeight: '900' },
+  shareMeta: { color: '#64748B', fontWeight: '700', marginTop: 4 },
+  shareButton: { backgroundColor: '#2563EB', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center' },
+  shareButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  shareHelp: { color: '#475569', lineHeight: 20, fontWeight: '600' },
+  shareStatus: { color: '#2563EB', fontWeight: '800' },
+  selectionActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  selectionCount: { color: '#0F172A', fontWeight: '900' },
+  selectionLink: { color: '#2563EB', fontWeight: '900' },
+  selectionShareButton: { backgroundColor: '#DBEAFE', borderRadius: 16, padding: 12, alignItems: 'center' },
+  selectionShareButtonText: { color: '#1D4ED8', fontWeight: '900' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-end' },
   sectionTitle: { color: '#0F172A', fontSize: 22, fontWeight: '800' },
   sectionMeta: { color: '#64748B', fontWeight: '700' },
@@ -217,6 +383,10 @@ const styles = StyleSheet.create({
   photoSectionTitle: { color: '#334155', fontSize: 16, fontWeight: '900', marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   photoCard: { width: '48%', backgroundColor: '#FFFFFF', borderRadius: 18, overflow: 'hidden', elevation: 2, shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 10 },
+  selectBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(15, 23, 42, 0.72)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  selectBadgeActive: { backgroundColor: '#2563EB' },
+  selectBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  selectBadgeTextActive: { color: '#DBEAFE' },
   photoWrap: { width: '100%', aspectRatio: 1, backgroundColor: '#1F2937' },
   photo: { width: '100%', height: '100%', opacity: 0.9 },
   retroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(120, 90, 44, 0.12)' },

@@ -27,23 +27,37 @@ export function CreateTripScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Start a shared roll</Text>
-      <TextInput style={styles.input} placeholder="Trip name" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
-      <TextInput style={styles.input} placeholder="Description" placeholderTextColor="#94A3B8" value={description} onChangeText={setDescription} />
-      <TextInput style={styles.input} placeholder="Destination" placeholderTextColor="#94A3B8" value={location} onChangeText={setLocation} />
-      <TextInput style={styles.input} placeholder="Start date" placeholderTextColor="#94A3B8" value={startDate} onChangeText={setStartDate} />
-      <TextInput style={styles.input} placeholder="End date" placeholderTextColor="#94A3B8" value={endDate} onChangeText={setEndDate} />
-      <Pressable style={styles.button} onPress={createTrip}>
-        <Text style={styles.buttonText}>Create trip</Text>
-      </Pressable>
+      <View style={styles.headerCard}>
+        <Text style={styles.eyebrow}>New roll</Text>
+        <Text style={styles.title}>Design a trip album before the first photo.</Text>
+        <Text style={styles.copy}>Name the memory, pick the place, then every disposable-style shot lands exactly where it belongs.</Text>
+      </View>
+      <View style={styles.formCard}>
+        <TextInput style={styles.input} placeholder="Trip name" placeholderTextColor="#C2410C" value={title} onChangeText={setTitle} />
+        <TextInput style={styles.input} placeholder="Description" placeholderTextColor="#C2410C" value={description} onChangeText={setDescription} />
+        <TextInput style={styles.input} placeholder="Destination" placeholderTextColor="#C2410C" value={location} onChangeText={setLocation} />
+        <View style={styles.dateRow}>
+          <TextInput style={[styles.input, styles.dateInput]} placeholder="Start" placeholderTextColor="#C2410C" value={startDate} onChangeText={setStartDate} />
+          <TextInput style={[styles.input, styles.dateInput]} placeholder="End" placeholderTextColor="#C2410C" value={endDate} onChangeText={setEndDate} />
+        </View>
+        <Pressable style={styles.button} onPress={createTrip}>
+          <Text style={styles.buttonText}>Create beautiful album</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, gap: 14 },
-  title: { color: '#0F172A', fontSize: 32, fontWeight: '900', marginBottom: 8 },
-  input: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, fontSize: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  button: { backgroundColor: '#0EA5E9', borderRadius: 18, padding: 16, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 16 },
+  container: { flex: 1, backgroundColor: '#431407', padding: 20, paddingTop: 88, gap: 18 },
+  headerCard: { backgroundColor: '#FFF7ED', borderRadius: 34, padding: 24, shadowColor: '#1C1917', shadowOpacity: 0.2, shadowRadius: 22 },
+  eyebrow: { color: '#EA580C', fontWeight: '900', letterSpacing: 1.4, textTransform: 'uppercase' },
+  title: { color: '#431407', fontSize: 32, fontWeight: '900', letterSpacing: -0.7, lineHeight: 36, marginTop: 10 },
+  copy: { color: '#7C2D12', fontSize: 16, fontWeight: '700', lineHeight: 23, marginTop: 10 },
+  formCard: { backgroundColor: 'rgba(255, 237, 213, 0.92)', borderRadius: 30, gap: 12, padding: 16 },
+  input: { backgroundColor: '#FFF7ED', borderColor: 'rgba(253, 186, 116, 0.9)', borderRadius: 20, borderWidth: 1, color: '#431407', fontSize: 16, fontWeight: '700', padding: 16 },
+  dateRow: { flexDirection: 'row', gap: 10 },
+  dateInput: { flex: 1 },
+  button: { alignItems: 'center', backgroundColor: '#FDBA74', borderRadius: 22, marginTop: 4, padding: 17 },
+  buttonText: { color: '#431407', fontSize: 16, fontWeight: '900' },
 });

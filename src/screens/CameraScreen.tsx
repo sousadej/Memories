@@ -1,8 +1,13 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { savePhoto } from '../data/tripStore';
+import { RootStackParamList } from '../types/navigation';
 
-export function CameraScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
+
+export function CameraScreen({ route }: Props) {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [shotsRemaining, setShotsRemaining] = useState(27);
@@ -23,8 +28,18 @@ export function CameraScreen() {
   }
 
   async function takePhoto() {
-    if (!cameraRef.current || shotsRemaining === 0) return;
-    await cameraRef.current.takePictureAsync({ quality: 0.75 });
+    if (!cameraRef.current || shotsRemaining === 0 || !route.params?.tripId) return;
+    const photo = await cameraRef.current.takePictureAsync({ quality: 0.75 });
+
+    if (photo?.uri) {
+      await savePhoto({
+        tripId: route.params.tripId,
+        localUri: photo.uri,
+        filterStyle: 'classic-disposable',
+        caption: 'Freshly captured memory',
+      });
+    }
+
     setShotsRemaining((count) => Math.max(0, count - 1));
   }
 
